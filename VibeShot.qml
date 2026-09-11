@@ -10,6 +10,7 @@ Item {
   id: root
 
   property bool opened: false
+  property bool menuOpen: false
   property string capturePath: ""
   property int captureW: 0
   property int captureH: 0
@@ -57,6 +58,18 @@ Item {
   // editor only opens if the user picks Markup on it.
   function captured(path) {
     previewSizer.pendingPath = path
+  }
+
+  // Mouse-clickable twin of the SUPER+V, 3/4/5 keyboard chord (bindings.lua's
+  // "screenshot" submap) — shown while that submap is active, hidden again
+  // via the "keybinds.submap" hook once it resets, whichever way it reset.
+  function showMenu() { root.menuOpen = true }
+  function hideMenu() { root.menuOpen = false }
+
+  function menuPick(mode) {
+    root.menuOpen = false
+    Util.execDetached("hyprctl dispatch 'hl.dsp.submap(\"reset\")'; " +
+      root.pluginDir + "/capture.sh " + mode)
   }
 
   function showPreview(path, w, h) {
@@ -405,7 +418,7 @@ Item {
   PanelWindow {
     id: panel
 
-    visible: root.opened
+    visible: root.opened || root.menuOpen
     anchors { top: true; bottom: true; left: true; right: true }
     color: "transparent"
     WlrLayershell.namespace: "aayork-vibeshot-editor"
@@ -421,8 +434,51 @@ Item {
 
     MouseArea {
       anchors.fill: parent
-      enabled: root.opened
-      onClicked: root.close()
+      enabled: root.opened || root.menuOpen
+      onClicked: {
+        if (root.menuOpen) Util.execDetached("hyprctl dispatch 'hl.dsp.submap(\"reset\")'")
+        else root.close()
+      }
+    }
+
+    BorderSurface {
+      id: menuCard
+      visible: root.menuOpen
+      anchors.top: parent.top
+      anchors.horizontalCenter: parent.horizontalCenter
+      anchors.topMargin: Style.space(60)
+      width: menuRow.implicitWidth + Style.spacing.panelPadding
+      height: menuRow.implicitHeight + Style.spacing.panelPadding
+      radius: Style.cornerRadius
+      color: Util.alpha(Color.popups.background, 0.98)
+      borderSpec: Border.surfaceSpec("popups", "border", Color.popups.border, Math.max(1, Style.space(2)))
+
+      MouseArea { anchors.fill: parent; onClicked: {} }
+
+      Row {
+        id: menuRow
+        anchors.centerIn: parent
+        spacing: Style.spacing.lg
+
+        Button {
+          text: "Fullscreen"
+          tooltipText: "3"
+          bordered: true
+          onClicked: root.menuPick("fullscreen")
+        }
+        Button {
+          text: "Area"
+          tooltipText: "4"
+          bordered: true
+          onClicked: root.menuPick("smart")
+        }
+        Button {
+          text: "Window"
+          tooltipText: "5"
+          bordered: true
+          onClicked: root.menuPick("windows")
+        }
+      }
     }
 
     Item {
