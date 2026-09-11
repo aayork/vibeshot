@@ -94,6 +94,14 @@ hl.layer_rule({
 as you hover (closest to CleanShot's own area tool), `region` is pure
 freeform with no hinting.
 
+## Dependencies
+
+All of these ship with a stock Omarchy install already, so there's nothing
+extra to install: `grim`, `slurp`, `hyprpicker`, `jq`, `wl-clipboard`,
+`xdg-utils`. The plugin only ever touches its own cache directory
+(`~/.cache/aayork.vibeshot`) and, when you choose Save, writes to
+`~/Pictures/Screenshots`.
+
 ## Uninstall
 
 ```bash
