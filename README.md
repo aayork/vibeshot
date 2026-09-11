@@ -36,21 +36,32 @@ omarchy plugin enable aayork.vibeshot
 
 ### Keybindings
 
-In `~/.config/hypr/bindings.lua`:
+In `~/.config/hypr/bindings.lua`. This mirrors CleanShot X on macOS: `SUPER+V`
+is a leader key (Hyprland submap) — tap it, then `3`/`4`/`5` for
+fullscreen/area/window, same as CleanShot's `Cmd+Shift+3/4/5`. Escape cancels
+if you tap `SUPER+V` and change your mind. Use absolute paths, not `~`, if
+your Hyprland Lua config doesn't expand it.
 
 ```lua
 hl.unbind("PRINT")
-hl.unbind("F12")
-hl.unbind("ALT + SHIFT + 4")
+hl.unbind("SUPER + V") -- was: Universal paste
+
+local vibeshot_bin = "/home/YOU/.config/omarchy/plugins/aayork.vibeshot/capture.sh"
+local reset_submap = [[hyprctl dispatch 'hl.dsp.submap("reset")']]
 
 -- Hyprland execs capture.sh directly (never as a child of omarchy-shell).
 -- Routing the interactive slurp/hyprpicker selection through a Quickshell
 -- Process breaks hyprpicker's screen freeze and cuts slurp's selection short
 -- on the first click — capture.sh must be launched by Hyprland itself, then
 -- it hands the finished PNG to the plugin over `omarchy-shell shell call`.
-o.bind("PRINT", "Screenshot", "~/.config/omarchy/plugins/aayork.vibeshot/capture.sh smart")
-o.bind("F12", "Screenshot (region)", "~/.config/omarchy/plugins/aayork.vibeshot/capture.sh region")
-o.bind("ALT + SHIFT + 4", "Screenshot (fullscreen)", "~/.config/omarchy/plugins/aayork.vibeshot/capture.sh fullscreen")
+hl.define_submap("screenshot", "escape", function()
+  o.bind("3", "Screenshot (fullscreen)", reset_submap .. "; " .. vibeshot_bin .. " fullscreen")
+  o.bind("4", "Screenshot (area)", reset_submap .. "; " .. vibeshot_bin .. " smart")
+  o.bind("5", "Screenshot (window)", reset_submap .. "; " .. vibeshot_bin .. " windows")
+end)
+
+o.bind("PRINT", "Screenshot", vibeshot_bin .. " smart")
+o.bind("SUPER + V", "Screenshot menu", hl.dsp.submap("screenshot"))
 
 hl.layer_rule({
   match = { namespace = "^aayork-vibeshot-editor$" },
@@ -66,11 +77,15 @@ hl.layer_rule({
 })
 ```
 
-(Use absolute paths, not `~`, if your Hyprland Lua config doesn't expand it.)
+`smart`/`region`/`fullscreen`/`windows` are the same modes
+`omarchy-capture-region` already supports — `smart` auto-highlights windows
+as you hover (closest to CleanShot's own area tool), `region` is pure
+freeform with no hinting.
 
-`smart`/`region`/`fullscreen` are the same modes `omarchy-capture-region`
-already supports — swap in `windows` too if you want a fourth binding for
-window-snapped capture.
+Heads up: while the `screenshot` submap is active (right after tapping
+`SUPER+V`), a bare `3`/`4`/`5` keypress anywhere — including in a text field —
+triggers a screenshot instead of typing that digit, until you press one of
+them or Escape.
 
 ## Uninstall
 
