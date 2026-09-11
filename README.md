@@ -63,7 +63,10 @@ local vibeshot_bin = "/home/YOU/.config/omarchy/plugins/aayork.vibeshot/capture.
 -- Process breaks hyprpicker's screen freeze and cuts slurp's selection short
 -- on the first click — capture.sh must be launched by Hyprland itself, then
 -- it hands the finished PNG to the plugin over `omarchy-shell shell call`.
-o.bind("PRINT", "Screenshot", vibeshot_bin .. " smart")
+o.bind("PRINT", "Screenshot", vibeshot_bin .. " smart") -- harmless if your keyboard has no PRINT key
+o.bind("ALT + SHIFT + 3", "Screenshot (area)", vibeshot_bin .. " smart")
+o.bind("F12", "Screenshot (region)", vibeshot_bin .. " region")
+o.bind("ALT + SHIFT + 4", "Screenshot (fullscreen)", vibeshot_bin .. " fullscreen")
 o.bind("SUPER + SHIFT + V", "Screenshot menu", "omarchy-shell shell call aayork.vibeshot showMenu ''")
 
 hl.layer_rule({
