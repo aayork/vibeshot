@@ -60,16 +60,18 @@ Item {
     previewSizer.pendingPath = path
   }
 
-  // Mouse-clickable twin of the SUPER+V, 3/4/5 keyboard chord (bindings.lua's
-  // "screenshot" submap) — shown while that submap is active, hidden again
-  // via the "keybinds.submap" hook once it resets, whichever way it reset.
-  function showMenu() { root.menuOpen = true }
+  // Capture-mode picker popup, opened by a single ordinary keybind (no
+  // Hyprland submap — that briefly disabled every other SUPER+... shortcut
+  // on the system while active, which is worse than the problem it solved).
+  function showMenu() {
+    root.menuOpen = true
+    Qt.callLater(function() { menuKeyCatcher.forceActiveFocus() })
+  }
   function hideMenu() { root.menuOpen = false }
 
   function menuPick(mode) {
     root.menuOpen = false
-    Util.execDetached("hyprctl dispatch 'hl.dsp.submap(\"reset\")'; " +
-      root.pluginDir + "/capture.sh " + mode)
+    Util.execDetached(root.pluginDir + "/capture.sh " + mode)
   }
 
   function showPreview(path, w, h) {
@@ -423,7 +425,7 @@ Item {
     color: "transparent"
     WlrLayershell.namespace: "aayork-vibeshot-editor"
     WlrLayershell.layer: WlrLayer.Overlay
-    WlrLayershell.keyboardFocus: root.opened ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
+    WlrLayershell.keyboardFocus: (root.opened || root.menuOpen) ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
     exclusionMode: ExclusionMode.Ignore
 
     Rectangle {
@@ -436,7 +438,7 @@ Item {
       anchors.fill: parent
       enabled: root.opened || root.menuOpen
       onClicked: {
-        if (root.menuOpen) Util.execDetached("hyprctl dispatch 'hl.dsp.submap(\"reset\")'")
+        if (root.menuOpen) root.hideMenu()
         else root.close()
       }
     }
@@ -462,21 +464,37 @@ Item {
 
         Button {
           text: "Fullscreen"
-          tooltipText: "3"
           bordered: true
           onClicked: root.menuPick("fullscreen")
         }
         Button {
           text: "Area"
-          tooltipText: "4"
           bordered: true
           onClicked: root.menuPick("smart")
         }
         Button {
           text: "Window"
-          tooltipText: "5"
           bordered: true
           onClicked: root.menuPick("windows")
+        }
+      }
+    }
+
+    Item {
+      id: menuKeyCatcher
+      anchors.fill: parent
+      focus: false
+
+      Keys.onPressed: function(event) {
+        if (!root.menuOpen) return
+        if (event.key === Qt.Key_Escape) {
+          root.hideMenu(); event.accepted = true
+        } else if (event.key === Qt.Key_3) {
+          root.menuPick("fullscreen"); event.accepted = true
+        } else if (event.key === Qt.Key_4) {
+          root.menuPick("smart"); event.accepted = true
+        } else if (event.key === Qt.Key_5) {
+          root.menuPick("windows"); event.accepted = true
         }
       }
     }

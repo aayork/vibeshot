@@ -26,10 +26,10 @@ Anything you pin (from the preview or from inside the editor) becomes a small
 always-on-top floating window you can drag anywhere on screen, with its own
 Markup/Save/dismiss controls on hover.
 
-Tapping the leader key (`SUPER+V`, see below) also pops up a small top-center
-mode picker — Fullscreen / Area / Window — a mouse-clickable twin of the
-`3`/`4`/`5` chord, loosely mirroring CleanShot's `Cmd+Shift+5` menu (minus the
-recording options CleanShot has and VibeShot doesn't, yet).
+A separate keybind (see below) pops up a small top-center mode picker —
+Fullscreen / Area / Window, clickable or via `3`/`4`/`5` while it's open —
+loosely mirroring CleanShot's `Cmd+Shift+5` menu (minus the recording options
+CleanShot has and VibeShot doesn't, yet).
 
 ## Install
 
@@ -41,43 +41,30 @@ omarchy plugin enable aayork.vibeshot
 
 ### Keybindings
 
-In `~/.config/hypr/bindings.lua`. This mirrors CleanShot X on macOS: `SUPER+V`
-is a leader key (Hyprland submap) — tap it, then `3`/`4`/`5` for
-fullscreen/area/window, same as CleanShot's `Cmd+Shift+3/4/5`. Escape cancels
-if you tap `SUPER+V` and change your mind. Use absolute paths, not `~`, if
-your Hyprland Lua config doesn't expand it.
+In `~/.config/hypr/bindings.lua`. Use absolute paths, not `~`, if your
+Hyprland Lua config doesn't expand it.
+
+An earlier version of this bound `SUPER+V` as a Hyprland *submap* (a leader
+key: tap it, then `3`/`4`/`5`) to mirror CleanShot's `Cmd+Shift+3/4/5` more
+closely. Don't do that — while a submap is active, Hyprland disables every
+other keybind on the system, including unrelated `SUPER+...` ones, until it
+resets, and any misfire there leaves the whole session's shortcuts stuck.
+Ordinary keybinds below; the mode-picker popup handles `3`/`4`/`5` as
+in-app shortcuts on its own instead, which is safe because it only listens
+while it's already open and focused.
 
 ```lua
 hl.unbind("PRINT")
-hl.unbind("SUPER + V") -- was: Universal paste
 
 local vibeshot_bin = "/home/YOU/.config/omarchy/plugins/aayork.vibeshot/capture.sh"
-local reset_submap = [[hyprctl dispatch 'hl.dsp.submap("reset")']]
 
 -- Hyprland execs capture.sh directly (never as a child of omarchy-shell).
 -- Routing the interactive slurp/hyprpicker selection through a Quickshell
 -- Process breaks hyprpicker's screen freeze and cuts slurp's selection short
 -- on the first click — capture.sh must be launched by Hyprland itself, then
 -- it hands the finished PNG to the plugin over `omarchy-shell shell call`.
-hl.define_submap("screenshot", "escape", function()
-  o.bind("3", "Screenshot (fullscreen)", reset_submap .. "; " .. vibeshot_bin .. " fullscreen")
-  o.bind("4", "Screenshot (area)", reset_submap .. "; " .. vibeshot_bin .. " smart")
-  o.bind("5", "Screenshot (window)", reset_submap .. "; " .. vibeshot_bin .. " windows")
-end)
-
 o.bind("PRINT", "Screenshot", vibeshot_bin .. " smart")
-o.bind("SUPER + V", "Screenshot menu", hl.dsp.submap("screenshot"))
-
--- Mouse-clickable twin of the 3/4/5 chord: show the plugin's mode-picker
--- popup whenever the "screenshot" submap becomes active, hide it again on
--- any reset (successful pick or Escape) — both take this same path.
-hl.on("keybinds.submap", function(name)
-  if name == "screenshot" then
-    hl.exec_cmd("omarchy-shell shell call aayork.vibeshot showMenu ''")
-  else
-    hl.exec_cmd("omarchy-shell shell call aayork.vibeshot hideMenu ''")
-  end
-end)
+o.bind("SUPER + SHIFT + V", "Screenshot menu", "omarchy-shell shell call aayork.vibeshot showMenu ''")
 
 hl.layer_rule({
   match = { namespace = "^aayork-vibeshot-editor$" },
@@ -97,11 +84,6 @@ hl.layer_rule({
 `omarchy-capture-region` already supports — `smart` auto-highlights windows
 as you hover (closest to CleanShot's own area tool), `region` is pure
 freeform with no hinting.
-
-Heads up: while the `screenshot` submap is active (right after tapping
-`SUPER+V`), a bare `3`/`4`/`5` keypress anywhere — including in a text field —
-triggers a screenshot instead of typing that digit, until you press one of
-them or Escape.
 
 ## Uninstall
 
