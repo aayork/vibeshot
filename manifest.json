@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "id": "aayork.vibeshot",
+  "name": "VibeShot",
+  "version": "0.1.0",
+  "author": "aayork",
+  "license": "MIT",
+  "description": "In-theme screenshot capture, markup editor, and floating pins for Omarchy",
+  "kinds": ["overlay"],
+  "keepLoaded": true,
+  "entryPoints": { "overlay": "VibeShot.qml" }
+}
