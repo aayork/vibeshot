@@ -101,12 +101,10 @@ Then remove the `o.bind`/`hl.layer_rule` blocks you pasted into
 rm -rf ~/.cache/aayork.vibeshot
 ```
 
-## Why not just use the stock screenshot tool / omasnap?
+## Why not just use the stock screenshot tool or others?
 
 The stock GTK-based editor (Tensaku) works fine but looks and feels like a
-separate app. [omasnap](https://github.com/tobi/omasnap) is a great native
-alternative but ships as its own compiled binary outside the Omarchy shell.
-VibeShot is a plain Quickshell plugin — no compiling, no separate process,
+separate app. VibeShot is a plain Quickshell plugin — no compiling, no separate process,
 and it inherits your theme's colors live because it's built directly on
 `qs.Commons` (`Color`/`Style`), the same tokens the bar and every other
 first-party Omarchy surface use.
