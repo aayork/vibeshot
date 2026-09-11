@@ -6,6 +6,12 @@ current Omarchy colors instead of popping open a separate GTK app.
 
 ![kind: overlay](https://img.shields.io/badge/kind-overlay-blue)
 
+## AI DISCLOSURE
+
+VibeShot is a vide-coded plugin (hence the name). I wanted a personal tool 
+similar to CleanShot X to use on Omarchy, and found that VibeShot worked well,
+so I decided to publish it.
+
 ## What it does
 
 Press a screenshot key and pick a region, window, or fullscreen shot exactly
