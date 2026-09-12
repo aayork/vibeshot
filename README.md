@@ -17,20 +17,26 @@ so I decided to publish it.
 Press a screenshot key and pick a region, window, or fullscreen shot exactly
 like Omarchy's stock screenshot tool (same `slurp`/`hyprpicker`/`grim`
 pipeline under the hood). Instead of jumping straight into an editor, a small
-preview drops into the bottom-left corner with three options:
+preview drops into the bottom-left corner with a small icon badge in each
+corner, shown on hover:
 
-- **Markup** — opens a full-screen annotation editor: arrows, lines,
-  rectangles, ellipses, freehand pen, highlighter, text, and a redact/blackout
-  tool, with undo/redo, three stroke widths, and a color palette pulled from
-  your live theme (foreground/accent/urgent/muted plus a few fixed accents).
-  Copy to clipboard, save to disk, or pin it from there too.
-- **Save** — writes the untouched screenshot straight to
-  `~/Pictures/Screenshots`.
-- **✕ (dismiss)** — throws it away.
+- **(pencil, bottom-left)** — opens a full-screen annotation editor: arrows,
+  lines, rectangles, ellipses, freehand pen, highlighter, text, and a
+  redact/blackout tool, with undo/redo, three stroke widths, and a color
+  palette pulled from your live theme (foreground/accent/urgent/muted plus a
+  few fixed accents). Copy to clipboard, save to disk, or pin it from there
+  too.
+- **(copy icon, top-left)** — copies the untouched screenshot to the
+  clipboard.
+- **(floppy disk, bottom-right)** — writes the untouched screenshot straight
+  to `~/Pictures/Screenshots`.
+- **✕ (top-right)** — throws it away.
 
 Anything you pin (from the preview or from inside the editor) becomes a small
-always-on-top floating window you can drag anywhere on screen, with its own
-Markup/Save/dismiss controls on hover.
+always-on-top floating window you can drag anywhere on screen, with the same
+four corner controls on hover. Pinning more than one stacks each new one
+directly above the last, all left-aligned in the corner, rather than
+cascading diagonally.
 
 A separate keybind (see below) pops up a small top-center mode picker —
 Fullscreen / Area / Window, clickable or via `3`/`4`/`5` while it's open —

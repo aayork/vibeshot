@@ -74,21 +74,33 @@ Item {
     Util.execDetached(root.pluginDir + "/capture.sh " + mode)
   }
 
+  // New pins stack straight up from the bottom-left, each sitting directly
+  // above the ones already there (rather than cascading diagonally) — sums
+  // the actual heights already stacked so it works regardless of aspect
+  // ratio. Removing a pin from the middle of the stack can leave a gap since
+  // the ones above it aren't re-flowed, but each pin stays freely draggable.
+  function nextPinPosition(h) {
+    var margin = Style.space(10)
+    var gap = Style.space(8)
+    var stacked = 0
+    for (var i = 0; i < root.pins.length; i++) stacked += root.pins[i].h + gap
+    return { x: margin, y: panel.screen.height - margin - stacked - h }
+  }
+
   function showPreview(path, w, h) {
     root.pinCounter += 1
     var scale = Math.min(1, root.pinMaxWidth / w)
     var tw = Math.round(w * scale)
     var th = Math.round(h * scale)
-    var margin = Style.space(10)
-    var cascade = (root.pins.length % 6) * 24
+    var pos = root.nextPinPosition(th)
     root.pins = root.pins.concat([{
       id: "pin" + root.pinCounter,
       path: path,
       fullPath: path,
       w: tw,
       h: th,
-      x: margin + cascade,
-      y: panel.screen.height - th - margin - cascade,
+      x: pos.x,
+      y: pos.y,
       transient: true
     }])
   }
@@ -312,16 +324,15 @@ Item {
     var okThumb = canvas.save(thumbPath, Qt.size(tw, th))
     if (!okFull || !okThumb) { root.close(); return }
 
-    var margin = Style.space(10)
-    var cascade = (root.pins.length % 6) * 24
+    var pos = root.nextPinPosition(th)
     root.pins = root.pins.concat([{
       id: "pin" + root.pinCounter,
       path: thumbPath,
       fullPath: fullPath,
       w: tw,
       h: th,
-      x: margin + cascade,
-      y: panel.screen.height - th - margin - cascade,
+      x: pos.x,
+      y: pos.y,
       transient: false
     }])
     root.close()
@@ -350,6 +361,12 @@ Item {
       " && omarchy-notification-send 'Screenshot saved' " + Util.shellQuote(dest))
     // The quick post-capture preview resolves once you act on it; a
     // deliberately pinned shot stays put so you can keep referencing it.
+    var pin = root.findPin(id)
+    if (pin && pin.transient) root.removePin(id)
+  }
+
+  function copyPin(id, fullPath) {
+    Util.execDetached("wl-copy --type image/png < " + Util.shellQuote(fullPath))
     var pin = root.findPin(id)
     if (pin && pin.transient) root.removePin(id)
   }
@@ -414,6 +431,7 @@ Item {
       closeHandler: root.removePin
       saveHandler: root.savePin
       markupHandler: root.markupPin
+      copyHandler: root.copyPin
     }
   }
 

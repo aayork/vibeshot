@@ -11,6 +11,7 @@ PanelWindow {
   property var closeHandler: null
   property var saveHandler: null
   property var markupHandler: null
+  property var copyHandler: null
 
   readonly property string pinId: modelData.id
   property real posX: modelData.x
@@ -78,6 +79,9 @@ PanelWindow {
       onDoubleClicked: Util.execArgv(["xdg-open", pin.modelData.path])
     }
 
+    // Four corner controls, each a small frosted circular badge like the
+    // close button — Font Awesome glyphs from the Nerd Font already in use
+    // elsewhere in the shell ( copy,  pencil,  floppy disk).
     Item {
       id: closeButton
       visible: pin.hovered
@@ -111,31 +115,104 @@ PanelWindow {
       }
     }
 
-    Row {
-      id: actionsRow
+    Item {
+      id: copyButton
       visible: pin.hovered
-      anchors.bottom: parent.bottom
-      anchors.horizontalCenter: parent.horizontalCenter
-      anchors.bottomMargin: Style.space(4)
-      spacing: Style.space(4)
+      width: Style.space(24)
+      height: Style.space(24)
+      anchors.top: parent.top
+      anchors.left: parent.left
+      anchors.margins: Style.space(4)
 
-      Button {
-        text: "Markup"
-        fontSize: Style.font.caption
-        horizontalPadding: Style.space(5)
-        verticalPadding: Style.space(2)
-        bordered: true
-        background: Util.alpha(Color.background, 0.85)
-        onClicked: if (pin.markupHandler) pin.markupHandler(pin.pinId, pin.modelData.fullPath)
+      Rectangle {
+        anchors.fill: parent
+        radius: width / 2
+        color: Util.alpha(Color.background, 0.5)
+        border.color: Util.alpha(Color.foreground, 0.3)
+        border.width: 1
       }
 
-      Button {
-        text: "Save"
-        fontSize: Style.font.caption
-        horizontalPadding: Style.space(5)
-        verticalPadding: Style.space(2)
-        bordered: true
-        background: Util.alpha(Color.background, 0.85)
+      Text {
+        anchors.centerIn: parent
+        text: ""
+        font.family: Style.font.family
+        color: Color.foreground
+        font.pixelSize: Style.font.heading
+        font.bold: true
+      }
+
+      MouseArea {
+        anchors.fill: parent
+        hoverEnabled: true
+        cursorShape: Qt.PointingHandCursor
+        onClicked: if (pin.copyHandler) pin.copyHandler(pin.pinId, pin.modelData.fullPath)
+      }
+    }
+
+    Item {
+      id: markupButton
+      visible: pin.hovered
+      width: Style.space(24)
+      height: Style.space(24)
+      anchors.bottom: parent.bottom
+      anchors.left: parent.left
+      anchors.margins: Style.space(4)
+
+      Rectangle {
+        anchors.fill: parent
+        radius: width / 2
+        color: Util.alpha(Color.background, 0.5)
+        border.color: Util.alpha(Color.foreground, 0.3)
+        border.width: 1
+      }
+
+      Text {
+        anchors.centerIn: parent
+        text: ""
+        font.family: Style.font.family
+        color: Color.foreground
+        font.pixelSize: Style.font.heading
+        font.bold: true
+      }
+
+      MouseArea {
+        anchors.fill: parent
+        hoverEnabled: true
+        cursorShape: Qt.PointingHandCursor
+        onClicked: if (pin.markupHandler) pin.markupHandler(pin.pinId, pin.modelData.fullPath)
+      }
+    }
+
+    Item {
+      id: saveButton
+      visible: pin.hovered
+      width: Style.space(24)
+      height: Style.space(24)
+      anchors.bottom: parent.bottom
+      anchors.right: parent.right
+      anchors.margins: Style.space(4)
+
+      Rectangle {
+        anchors.fill: parent
+        radius: width / 2
+        color: Util.alpha(Color.background, 0.5)
+        border.color: Util.alpha(Color.foreground, 0.3)
+        border.width: 1
+      }
+
+      Text {
+        anchors.centerIn: parent
+        text: ""
+        font.family: Style.font.family
+        color: Color.foreground
+        font.pixelSize: Style.font.heading
+        font.bold: true
+      }
+
+      MouseArea {
+        anchors.fill: parent
+        hoverEnabled: true
+        cursorShape: Qt.PointingHandCursor
         onClicked: if (pin.saveHandler) pin.saveHandler(pin.pinId, pin.modelData.fullPath)
       }
     }
