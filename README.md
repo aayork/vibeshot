@@ -59,15 +59,6 @@ omarchy plugin enable aayork.vibeshot
 In `~/.config/hypr/bindings.lua`. Use absolute paths, not `~`, if your
 Hyprland Lua config doesn't expand it.
 
-An earlier version of this bound `SUPER+V` as a Hyprland *submap* (a leader
-key: tap it, then `3`/`4`/`5`) to mirror CleanShot's `Cmd+Shift+3/4/5` more
-closely. Don't do that — while a submap is active, Hyprland disables every
-other keybind on the system, including unrelated `SUPER+...` ones, until it
-resets, and any misfire there leaves the whole session's shortcuts stuck.
-Ordinary keybinds below; the mode-picker popup handles `3`/`4`/`5` as
-in-app shortcuts on its own instead, which is safe because it only listens
-while it's already open and focused.
-
 ```lua
 hl.unbind("PRINT")
 
@@ -82,7 +73,7 @@ o.bind("PRINT", "Screenshot", vibeshot_bin .. " smart") -- harmless if your keyb
 o.bind("ALT + SHIFT + 3", "Screenshot (area)", vibeshot_bin .. " smart")
 o.bind("F12", "Screenshot (region)", vibeshot_bin .. " region")
 o.bind("ALT + SHIFT + 4", "Screenshot (fullscreen)", vibeshot_bin .. " fullscreen")
-o.bind("SUPER + SHIFT + V", "Screenshot menu", "omarchy-shell shell call aayork.vibeshot showMenu ''")
+o.bind("ALT + SHIFT + 5", "Screenshot menu", "omarchy-shell shell call aayork.vibeshot showMenu ''")
 
 hl.layer_rule({
   match = { namespace = "^aayork-vibeshot-editor$" },
