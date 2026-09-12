@@ -11,6 +11,7 @@ Item {
 
   property bool opened: false
   property bool menuOpen: false
+  property bool gifRecording: false
   property string capturePath: ""
   property int captureW: 0
   property int captureH: 0
@@ -57,6 +58,7 @@ Item {
   // not the full editor — matches CleanShot's quick-look popup. The full
   // editor only opens if the user picks Markup on it.
   function captured(path) {
+    previewSizer.pendingKind = "image"
     previewSizer.pendingPath = path
   }
 
@@ -69,9 +71,38 @@ Item {
   }
   function hideMenu() { root.menuOpen = false }
 
+  // Hands a command to Hyprland to launch (hl.dsp.exec_cmd), rather than
+  // running it directly as a child of this Quickshell process. Anything that
+  // itself shells out to slurp/hyprpicker (capture.sh, record-gif.sh) MUST
+  // start this way — a Quickshell-spawned slurp breaks mid-selection, same
+  // root cause as the capture.sh/bindings.lua fix, just reachable from a
+  // button click instead of a keybind.
+  function execViaHyprland(cmd) {
+    var luaEscaped = cmd.replace(/\\/g, "\\\\").replace(/"/g, "\\\"")
+    Util.execDetached("hyprctl dispatch 'hl.dsp.exec_cmd(\"" + luaEscaped + "\")'")
+  }
+
   function menuPick(mode) {
     root.menuOpen = false
-    Util.execDetached(root.pluginDir + "/capture.sh " + mode)
+    root.execViaHyprland(root.pluginDir + "/capture.sh " + mode)
+  }
+
+  function menuToggleGif() {
+    root.menuOpen = false
+    root.execViaHyprland(root.pluginDir + "/record-gif.sh")
+  }
+
+  function gifStarted() { root.gifRecording = true }
+
+  function gifFailed() {
+    root.gifRecording = false
+    Util.execArgv(["omarchy-notification-send", "-u", "critical", "GIF recording failed"])
+  }
+
+  function gifReady(path) {
+    root.gifRecording = false
+    previewSizer.pendingKind = "gif"
+    previewSizer.pendingPath = path
   }
 
   // New pins stack straight up from the bottom-left, each sitting directly
@@ -87,7 +118,7 @@ Item {
     return { x: margin, y: panel.screen.height - margin - stacked - h }
   }
 
-  function showPreview(path, w, h) {
+  function showPreview(path, w, h, kind) {
     root.pinCounter += 1
     var scale = Math.min(1, root.pinMaxWidth / w)
     var tw = Math.round(w * scale)
@@ -101,6 +132,7 @@ Item {
       h: th,
       x: pos.x,
       y: pos.y,
+      kind: kind || "image",
       transient: true
     }])
   }
@@ -336,6 +368,7 @@ Item {
       h: th,
       x: pos.x,
       y: pos.y,
+      kind: "image",
       transient: false
     }])
     root.close()
@@ -419,11 +452,12 @@ Item {
     id: previewSizer
     visible: false
     property string pendingPath: ""
+    property string pendingKind: "image"
     source: pendingPath ? Util.fileUrl(pendingPath) : ""
     asynchronous: true
     onStatusChanged: {
       if (status === Image.Ready && pendingPath) {
-        root.showPreview(pendingPath, sourceSize.width, sourceSize.height)
+        root.showPreview(pendingPath, sourceSize.width, sourceSize.height, pendingKind)
         pendingPath = ""
       }
     }
