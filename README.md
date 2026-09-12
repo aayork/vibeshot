@@ -9,8 +9,8 @@ current Omarchy colors instead of popping open a separate GTK app.
 ## AI DISCLOSURE
 
 VibeShot is a vide-coded plugin (hence the name). I wanted a powerful screenshot
-tool that felt native to omarchy, and I found that this one worked great. So, I
-decided to publish it to share with others.
+tool that felt native to omarchy, and after some tinkering, it turns out
+that this one works great. So, I decided to publish it to share with others.
 
 ## What it does
 
