@@ -65,7 +65,7 @@ start_capture() {
 
   echo "$loop_pid" >"$PID_FILE"
   echo "$work_dir" >"$STATE_FILE"
-  notify_plugin scrollStarted
+  notify_plugin scrollStarted "$selection"
 }
 
 if [[ -f $PID_FILE ]] && kill -0 "$(cat "$PID_FILE" 2>/dev/null)" 2>/dev/null; then

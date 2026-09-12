@@ -13,6 +13,10 @@ Item {
   property bool menuOpen: false
   property bool gifRecording: false
   property bool scrollRecording: false
+  property var gifRegion: null
+  property var scrollRegion: null
+  property real recordingStartMs: 0
+  property int recordingElapsedSec: 0
   property string capturePath: ""
   property int captureW: 0
   property int captureH: 0
@@ -39,6 +43,20 @@ Item {
     Color.foreground, Color.accent, Color.urgent, Color.muted,
     "#e8544a", "#f2b94a", "#4ac98a", "#4a9ef2"
   ]
+
+  readonly property string formattedElapsed: {
+    var s = root.recordingElapsedSec
+    var m = Math.floor(s / 60)
+    var r = s % 60
+    return m + ":" + (r < 10 ? "0" : "") + r
+  }
+
+  Timer {
+    interval: 1000
+    repeat: true
+    running: root.gifRecording || root.scrollRecording
+    onTriggered: root.recordingElapsedSec = Math.floor((Date.now() - root.recordingStartMs) / 1000)
+  }
 
   // --- lifecycle: called by omarchy-shell's summon/hide over IPC ---
 
@@ -88,20 +106,35 @@ Item {
     root.execViaHyprland(root.pluginDir + "/capture.sh " + mode)
   }
 
+  // Parses slurp/omarchy-capture-region's "X,Y WxH" format into screen-space
+  // logical coordinates for drawing the recording-region border.
+  function parseGeometry(str) {
+    var m = String(str || "").match(/^(-?\d+),(-?\d+)\s+(\d+)x(\d+)$/)
+    if (!m) return null
+    return { x: parseInt(m[1], 10), y: parseInt(m[2], 10), w: parseInt(m[3], 10), h: parseInt(m[4], 10) }
+  }
+
   function menuToggleGif() {
     root.menuOpen = false
     root.execViaHyprland(root.pluginDir + "/record-gif.sh")
   }
 
-  function gifStarted() { root.gifRecording = true }
+  function gifStarted(geom) {
+    root.gifRecording = true
+    root.gifRegion = root.parseGeometry(geom)
+    root.recordingStartMs = Date.now()
+    root.recordingElapsedSec = 0
+  }
 
   function gifFailed() {
     root.gifRecording = false
+    root.gifRegion = null
     Util.execArgv(["omarchy-notification-send", "-u", "critical", "GIF recording failed"])
   }
 
   function gifReady(path) {
     root.gifRecording = false
+    root.gifRegion = null
     previewSizer.pendingKind = "gif"
     previewSizer.pendingPath = path
   }
@@ -111,15 +144,22 @@ Item {
     root.execViaHyprland(root.pluginDir + "/scroll-capture.sh")
   }
 
-  function scrollStarted() { root.scrollRecording = true }
+  function scrollStarted(geom) {
+    root.scrollRecording = true
+    root.scrollRegion = root.parseGeometry(geom)
+    root.recordingStartMs = Date.now()
+    root.recordingElapsedSec = 0
+  }
 
   function scrollFailed() {
     root.scrollRecording = false
+    root.scrollRegion = null
     Util.execArgv(["omarchy-notification-send", "-u", "critical", "Scrolling capture failed"])
   }
 
   function scrollCaptured(path) {
     root.scrollRecording = false
+    root.scrollRegion = null
     previewSizer.pendingKind = "image"
     previewSizer.pendingPath = path
   }
@@ -410,20 +450,22 @@ Item {
   }
 
   function savePin(id, fullPath) {
+    var pin = root.findPin(id)
+    var ext = (pin && pin.kind === "gif") ? ".gif" : ".png"
     var ts = Qt.formatDateTime(new Date(), "yyyy-MM-dd_HH-mm-ss")
-    var dest = root.picturesDir + "/screenshot-" + ts + ".png"
+    var dest = root.picturesDir + "/screenshot-" + ts + ext
     Util.execDetached("cp " + Util.shellQuote(fullPath) + " " + Util.shellQuote(dest) +
       " && omarchy-notification-send 'Screenshot saved' --image " + Util.shellQuote(dest))
     // The quick post-capture preview resolves once you act on it; a
     // deliberately pinned shot stays put so you can keep referencing it.
-    var pin = root.findPin(id)
     if (pin && pin.transient) root.removePin(id)
   }
 
   function copyPin(id, fullPath) {
-    Util.execDetached("wl-copy --type image/png < " + Util.shellQuote(fullPath) +
-      " && omarchy-notification-send 'Copied to clipboard' --image " + Util.shellQuote(fullPath))
     var pin = root.findPin(id)
+    var mime = (pin && pin.kind === "gif") ? "image/gif" : "image/png"
+    Util.execDetached("wl-copy --type " + mime + " < " + Util.shellQuote(fullPath) +
+      " && omarchy-notification-send 'Copied to clipboard' --image " + Util.shellQuote(fullPath))
     if (pin && pin.transient) root.removePin(id)
   }
 
@@ -497,13 +539,28 @@ Item {
   PanelWindow {
     id: panel
 
-    visible: root.opened || root.menuOpen
+    visible: root.opened || root.menuOpen || root.gifRecording || root.scrollRecording
     anchors { top: true; bottom: true; left: true; right: true }
     color: "transparent"
     WlrLayershell.namespace: "aayork-vibeshot-editor"
     WlrLayershell.layer: WlrLayer.Overlay
+    // Exclusive only for the editor/menu, which need keyboard input
+    // themselves — recording indicators must NOT grab focus, or you'd be
+    // unable to type/interact with whatever you're actually recording.
     WlrLayershell.keyboardFocus: (root.opened || root.menuOpen) ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
     exclusionMode: ExclusionMode.Ignore
+    // Editor/menu want the full-surface default input region; while only a
+    // recording indicator is showing, everything except its own small HUD
+    // must stay click-through so you can keep interacting with the app
+    // being recorded. gifHud/scrollHud collapse to 0x0 when not the active
+    // recording, so an inactive one never leaves a stray hotspot behind.
+    mask: (root.opened || root.menuOpen) ? null : recordingMask
+
+    Region {
+      id: recordingMask
+      Region { item: gifHud }
+      Region { item: scrollHud }
+    }
 
     Rectangle {
       anchors.fill: parent
@@ -776,6 +833,130 @@ Item {
           Button { text: "Copy"; tooltipText: "Copy to clipboard (Enter)"; onClicked: root.doCopy() }
           Button { text: "Save"; tooltipText: "Save to Pictures/Screenshots"; onClicked: root.doSave() }
           Button { iconText: "✕"; tooltipText: "Cancel (Esc)"; onClicked: root.close() }
+        }
+      }
+    }
+
+    // Recording-in-progress indicators: a border around the exact captured
+    // area plus a small HUD (pulsing dot, elapsed time, Stop). Positioned in
+    // panel's own local space, so the region's global coordinates need the
+    // panel's screen offset subtracted — matters on multi-monitor setups.
+    Item {
+      id: gifRegionBox
+      visible: root.gifRecording && root.gifRegion !== null
+      x: root.gifRegion ? root.gifRegion.x - panel.screen.x : 0
+      y: root.gifRegion ? root.gifRegion.y - panel.screen.y : 0
+      width: root.gifRegion ? root.gifRegion.w : 0
+      height: root.gifRegion ? root.gifRegion.h : 0
+
+      Rectangle {
+        anchors.fill: parent
+        color: "transparent"
+        border.color: Color.urgent
+        border.width: Style.space(3)
+      }
+    }
+
+    BorderSurface {
+      id: gifHud
+      visible: root.gifRecording
+      width: visible ? gifHudRow.implicitWidth + Style.space(16) : 0
+      height: visible ? gifHudRow.implicitHeight + Style.space(10) : 0
+      x: gifRegionBox.x + Style.space(8)
+      y: gifRegionBox.y + Style.space(8)
+      radius: Style.cornerRadius
+      color: Util.alpha(Color.popups.background, 0.95)
+      borderSpec: Border.surfaceSpec("popups", "border", Color.popups.border, Math.max(1, Style.space(2)))
+
+      Row {
+        id: gifHudRow
+        anchors.centerIn: parent
+        spacing: Style.space(8)
+
+        Rectangle {
+          width: Style.space(10); height: Style.space(10); radius: width / 2
+          color: Color.urgent
+          anchors.verticalCenter: parent.verticalCenter
+          SequentialAnimation on opacity {
+            loops: Animation.Infinite
+            running: root.gifRecording
+            NumberAnimation { from: 1.0; to: 0.3; duration: 700 }
+            NumberAnimation { from: 0.3; to: 1.0; duration: 700 }
+          }
+        }
+        Text {
+          textFormat: Text.PlainText
+          text: "Recording GIF " + root.formattedElapsed
+          color: Color.foreground
+          font.family: Style.font.family
+          font.pixelSize: Style.font.body
+          anchors.verticalCenter: parent.verticalCenter
+        }
+        Button {
+          text: "Stop"
+          bordered: true
+          anchors.verticalCenter: parent.verticalCenter
+          onClicked: root.menuToggleGif()
+        }
+      }
+    }
+
+    Item {
+      id: scrollRegionBox
+      visible: root.scrollRecording && root.scrollRegion !== null
+      x: root.scrollRegion ? root.scrollRegion.x - panel.screen.x : 0
+      y: root.scrollRegion ? root.scrollRegion.y - panel.screen.y : 0
+      width: root.scrollRegion ? root.scrollRegion.w : 0
+      height: root.scrollRegion ? root.scrollRegion.h : 0
+
+      Rectangle {
+        anchors.fill: parent
+        color: "transparent"
+        border.color: Color.accent
+        border.width: Style.space(3)
+      }
+    }
+
+    BorderSurface {
+      id: scrollHud
+      visible: root.scrollRecording
+      width: visible ? scrollHudRow.implicitWidth + Style.space(16) : 0
+      height: visible ? scrollHudRow.implicitHeight + Style.space(10) : 0
+      x: scrollRegionBox.x + Style.space(8)
+      y: scrollRegionBox.y + Style.space(8)
+      radius: Style.cornerRadius
+      color: Util.alpha(Color.popups.background, 0.95)
+      borderSpec: Border.surfaceSpec("popups", "border", Color.popups.border, Math.max(1, Style.space(2)))
+
+      Row {
+        id: scrollHudRow
+        anchors.centerIn: parent
+        spacing: Style.space(8)
+
+        Rectangle {
+          width: Style.space(10); height: Style.space(10); radius: width / 2
+          color: Color.accent
+          anchors.verticalCenter: parent.verticalCenter
+          SequentialAnimation on opacity {
+            loops: Animation.Infinite
+            running: root.scrollRecording
+            NumberAnimation { from: 1.0; to: 0.3; duration: 700 }
+            NumberAnimation { from: 0.3; to: 1.0; duration: 700 }
+          }
+        }
+        Text {
+          textFormat: Text.PlainText
+          text: "Scroll capturing " + root.formattedElapsed + " — scroll the page now"
+          color: Color.foreground
+          font.family: Style.font.family
+          font.pixelSize: Style.font.body
+          anchors.verticalCenter: parent.verticalCenter
+        }
+        Button {
+          text: "Stop"
+          bordered: true
+          anchors.verticalCenter: parent.verticalCenter
+          onClicked: root.menuToggleScroll()
         }
       }
     }
