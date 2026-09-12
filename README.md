@@ -1,6 +1,6 @@
 # VibeShot
 
-A CleanShot-style screenshot tool for [Omarchy](https://omarchy.org/) — capture,
+A screenshot tool for [Omarchy](https://omarchy.org/) — capture,
 markup, and pin, all as a native Quickshell overlay that themes itself off your
 current Omarchy colors instead of popping open a separate GTK app.
 
@@ -8,9 +8,9 @@ current Omarchy colors instead of popping open a separate GTK app.
 
 ## AI DISCLOSURE
 
-VibeShot is a vide-coded plugin (hence the name). I wanted a personal tool 
-similar to CleanShot X to use on Omarchy, and found that VibeShot worked well,
-so I decided to publish it.
+VibeShot is a vide-coded plugin (hence the name). I wanted a powerful screenshot
+tool that felt native to omarchy, and I found that this one worked great. So, I
+decided to publish it to share with others.
 
 ## What it does
 
