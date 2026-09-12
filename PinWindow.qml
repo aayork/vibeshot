@@ -175,7 +175,8 @@ PanelWindow {
 
     Item {
       id: markupButton
-      visible: pin.hovered
+      // The still-image annotation editor can't meaningfully edit a GIF.
+      visible: pin.hovered && pin.modelData.kind !== "gif"
       width: Style.space(24)
       height: Style.space(24)
       anchors.bottom: parent.bottom

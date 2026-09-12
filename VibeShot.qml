@@ -12,6 +12,7 @@ Item {
   property bool opened: false
   property bool menuOpen: false
   property bool gifRecording: false
+  property bool scrollRecording: false
   property string capturePath: ""
   property int captureW: 0
   property int captureH: 0
@@ -102,6 +103,24 @@ Item {
   function gifReady(path) {
     root.gifRecording = false
     previewSizer.pendingKind = "gif"
+    previewSizer.pendingPath = path
+  }
+
+  function menuToggleScroll() {
+    root.menuOpen = false
+    root.execViaHyprland(root.pluginDir + "/scroll-capture.sh")
+  }
+
+  function scrollStarted() { root.scrollRecording = true }
+
+  function scrollFailed() {
+    root.scrollRecording = false
+    Util.execArgv(["omarchy-notification-send", "-u", "critical", "Scrolling capture failed"])
+  }
+
+  function scrollCaptured(path) {
+    root.scrollRecording = false
+    previewSizer.pendingKind = "image"
     previewSizer.pendingPath = path
   }
 
@@ -409,6 +428,8 @@ Item {
   }
 
   function markupPin(id, fullPath) {
+    var existing = root.findPin(id)
+    if (existing && existing.kind === "gif") return
     var thumbToRemove = ""
     var next = []
     for (var i = 0; i < root.pins.length; i++) {
@@ -532,6 +553,18 @@ Item {
           text: "Window"
           bordered: true
           onClicked: root.menuPick("windows")
+        }
+        Button {
+          text: root.gifRecording ? "Stop Recording" : "Record GIF"
+          bordered: true
+          selected: root.gifRecording
+          onClicked: root.menuToggleGif()
+        }
+        Button {
+          text: root.scrollRecording ? "Stop Scroll" : "Scroll Capture"
+          bordered: true
+          selected: root.scrollRecording
+          onClicked: root.menuToggleScroll()
         }
       }
     }
