@@ -1,6 +1,7 @@
 import Quickshell
 import Quickshell.Wayland
 import QtQuick
+import QtQuick.Effects
 import qs.Commons
 import qs.Ui
 
@@ -79,9 +80,9 @@ PanelWindow {
       onDoubleClicked: Util.execArgv(["xdg-open", pin.modelData.path])
     }
 
-    // Four corner controls, each a small frosted circular badge like the
-    // close button — Font Awesome glyphs from the Nerd Font already in use
-    // elsewhere in the shell ( copy,  pencil,  floppy disk).
+    // Four corner controls, each a small frosted circular badge with a
+    // Lucide icon (see icons/, MIT-compatible ISC license) recolored to the
+    // live theme foreground via a MultiEffect colorization pass.
     Item {
       id: closeButton
       visible: pin.hovered
@@ -99,12 +100,19 @@ PanelWindow {
         border.width: 1
       }
 
-      Text {
+      Image {
+        id: closeIcon
         anchors.centerIn: parent
-        text: "✕"
-        color: Color.foreground
-        font.pixelSize: Style.font.heading
-        font.bold: true
+        width: Style.space(14)
+        height: Style.space(14)
+        source: "icons/x.svg"
+        sourceSize: Qt.size(width, height)
+        smooth: true
+        layer.enabled: true
+        layer.effect: MultiEffect {
+          colorization: 1.0
+          colorizationColor: Color.foreground
+        }
       }
 
       MouseArea {
@@ -132,13 +140,19 @@ PanelWindow {
         border.width: 1
       }
 
-      Text {
+      Image {
+        id: copyIcon
         anchors.centerIn: parent
-        text: ""
-        font.family: Style.font.family
-        color: Color.foreground
-        font.pixelSize: Style.font.heading
-        font.bold: true
+        width: Style.space(14)
+        height: Style.space(14)
+        source: "icons/copy.svg"
+        sourceSize: Qt.size(width, height)
+        smooth: true
+        layer.enabled: true
+        layer.effect: MultiEffect {
+          colorization: 1.0
+          colorizationColor: Color.foreground
+        }
       }
 
       MouseArea {
@@ -166,13 +180,19 @@ PanelWindow {
         border.width: 1
       }
 
-      Text {
+      Image {
+        id: markupIcon
         anchors.centerIn: parent
-        text: ""
-        font.family: Style.font.family
-        color: Color.foreground
-        font.pixelSize: Style.font.heading
-        font.bold: true
+        width: Style.space(14)
+        height: Style.space(14)
+        source: "icons/pencil.svg"
+        sourceSize: Qt.size(width, height)
+        smooth: true
+        layer.enabled: true
+        layer.effect: MultiEffect {
+          colorization: 1.0
+          colorizationColor: Color.foreground
+        }
       }
 
       MouseArea {
@@ -200,13 +220,19 @@ PanelWindow {
         border.width: 1
       }
 
-      Text {
+      Image {
+        id: saveIcon
         anchors.centerIn: parent
-        text: ""
-        font.family: Style.font.family
-        color: Color.foreground
-        font.pixelSize: Style.font.heading
-        font.bold: true
+        width: Style.space(14)
+        height: Style.space(14)
+        source: "icons/save.svg"
+        sourceSize: Qt.size(width, height)
+        smooth: true
+        layer.enabled: true
+        layer.effect: MultiEffect {
+          colorization: 1.0
+          colorizationColor: Color.foreground
+        }
       }
 
       MouseArea {
