@@ -41,10 +41,28 @@ four corner controls on hover. Pinning more than one stacks each new one
 directly above the last, all left-aligned in the corner, rather than
 cascading diagonally.
 
-A separate keybind (see below) pops up a small top-center mode picker —
-Fullscreen / Area / Window, clickable or via `3`/`4`/`5` while it's open —
-loosely mirroring CleanShot's `Cmd+Shift+5` menu (minus the recording options
-CleanShot has and VibeShot doesn't, yet).
+A separate keybind (see below) pops up a small top-center mode picker with
+five options, mirroring CleanShot's `Cmd+Shift+5` menu:
+
+- **Fullscreen / Area / Window** — same as the keybinds above (also
+  reachable via `3`/`4`/`5` while the menu is open).
+- **Record GIF** — click to pick a region and start recording (via
+  `gpu-screen-recorder`, the same tool Omarchy's own screen recording uses);
+  the button becomes **Stop Recording** — click it again to finish. The
+  video is converted to a GIF with `ffmpeg`'s two-pass palette encoder and
+  shows up as an animated preview pin, just like a screenshot (no Markup,
+  since the still-image editor can't edit a GIF — Copy/Save/dismiss still
+  work).
+- **Scroll Capture** — click, pick a region, then **manually scroll it
+  yourself**; VibeShot grabs a frame roughly every 0.7s and stitches new
+  content onto a running tall image by finding where consecutive frames
+  overlap. Click the button again (now **Stop Scroll**) to finish. There's
+  no auto-scroll (nothing on the system injects synthetic scroll events),
+  so this is only as fast as you scroll — pause briefly between chunks for
+  the smoothest stitch. Works best on content-rich pages (text, images);
+  large uniform-color regions can occasionally cause a section to be
+  skipped rather than duplicated — the stitcher fails safe in that
+  direction.
 
 ## Install
 
@@ -96,9 +114,23 @@ freeform with no hinting.
 
 ## Dependencies
 
-All of these ship with a stock Omarchy install already, so there's nothing
-extra to install: `grim`, `slurp`, `hyprpicker`, `jq`, `wl-clipboard`,
-`xdg-utils`. The plugin only ever touches its own cache directory
+Screenshots, the editor, and GIF recording need nothing beyond a stock
+Omarchy install: `grim`, `slurp`, `hyprpicker`, `jq`, `wl-clipboard`,
+`xdg-utils`, `gpu-screen-recorder`, and `ffmpeg` all ship in Omarchy's base
+package set already.
+
+Scroll capture is the one exception — it needs `python-pillow` and
+`python-numpy` for the frame-stitching logic, which are not part of the
+base install:
+
+```bash
+sudo pacman -S python-pillow python-numpy
+```
+
+Everything else works fine without them; only clicking Scroll Capture needs
+it.
+
+The plugin only ever touches its own cache directory
 (`~/.cache/aayork.vibeshot`) and, when you choose Save, writes to
 `~/Pictures/Screenshots`.
 
@@ -135,6 +167,18 @@ first-party Omarchy surface use.
   the pin windows.
 - `PinWindow.qml` is one floating pin — a small always-on-top layer-shell
   surface, one instance per pinned/previewed screenshot.
+- `record-gif.sh` and `scroll-capture.sh` follow the same
+  Hyprland-launches-it-directly pattern as `capture.sh`, for the same
+  reason (both do a one-time `slurp` region pick up front). Menu clicks
+  reach them via `hyprctl dispatch 'hl.dsp.exec_cmd("...")'` — asking
+  Hyprland itself to launch the process — rather than running them
+  directly from the Quickshell button handler, which would reintroduce the
+  same problem one level up.
+- `stitch-frame.py` does scroll capture's actual frame alignment: it takes
+  the bottom strip of the previously captured frame, finds where that
+  content reappears in the newly captured frame (a brute-force pixel-row
+  search, small enough per tick to stay fast), and appends only the new
+  content below it onto the running stitched image.
 
 ## License
 
