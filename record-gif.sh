@@ -7,10 +7,24 @@
 set -uo pipefail
 
 CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/aayork.vibeshot"
-mkdir -p "$CACHE_DIR"
+
+if [[ -L "$CACHE_DIR" ]]; then
+  echo "aayork.vibeshot: $CACHE_DIR is a symlink, refusing to use it" >&2
+  exit 1
+fi
+mkdir -p -m 700 "$CACHE_DIR"
+if [[ ! -O "$CACHE_DIR" ]]; then
+  echo "aayork.vibeshot: $CACHE_DIR is not owned by the current user, refusing to use it" >&2
+  exit 1
+fi
+
 PID_FILE="$CACHE_DIR/gif-recording.pid"
 VIDEO_FILE="$CACHE_DIR/gif-recording.path"
 FPS=15
+# Hard deadline: if the Stop button is somehow never clicked (crash, lost
+# focus, whatever), the recording still ends on its own instead of running
+# forever and filling the disk.
+MAX_DURATION=1800
 
 notify_plugin() {
   omarchy-shell shell call aayork.vibeshot "$1" "${2:-}"
@@ -36,13 +50,16 @@ stop_and_convert() {
   rm -f "$PID_FILE" "$VIDEO_FILE"
 
   if [[ -n "$pid" ]]; then
-    kill -SIGINT "$pid" 2>/dev/null
+    # $pid is setsid's PID from start_recording, which is also the process
+    # group ID for the whole recorder — signal the group (negative PID), not
+    # just that one process, so nothing it spawned is left running.
+    kill -SIGINT -- "-$pid" 2>/dev/null
     local count=0
     while kill -0 "$pid" 2>/dev/null && ((count < 50)); do
       sleep 0.1
       count=$((count + 1))
     done
-    kill -9 "$pid" 2>/dev/null
+    kill -9 -- "-$pid" 2>/dev/null
   fi
 
   if [[ -z "$video" || ! -f "$video" ]]; then
@@ -79,12 +96,23 @@ start_recording() {
     exit 0
   fi
 
-  local video="$CACHE_DIR/gif-$(date +%s%N).mp4"
-  gpu-screen-recorder "${region_args[@]}" -f "$FPS" -fm cfr -fallback-cpu-encoding yes -o "$video" >/dev/null 2>&1 &
+  # mktemp both picks an unpredictable name and creates the file exclusively
+  # up front, so gpu-screen-recorder is never the first thing to touch this
+  # path. setsid puts the recorder (and timeout, its direct parent here) in
+  # its own process group, and timeout enforces MAX_DURATION as a hard
+  # deadline even if stop_and_convert is never called — both make cleanup
+  # reliable regardless of how the recording ends.
+  local video
+  video=$(mktemp "$CACHE_DIR/gif-XXXXXXXXXX.mp4")
+  setsid timeout --signal=INT --kill-after=5 "$MAX_DURATION" \
+    gpu-screen-recorder "${region_args[@]}" -f "$FPS" -fm cfr -fallback-cpu-encoding yes -o "$video" >/dev/null 2>&1 &
   local pid=$!
 
+  # mktemp already created $video (empty) up front, so its mere existence no
+  # longer indicates the recorder has actually started — wait for it to
+  # become non-empty instead.
   local waited=0
-  while kill -0 "$pid" 2>/dev/null && [[ ! -f $video ]] && ((waited < 50)); do
+  while kill -0 "$pid" 2>/dev/null && [[ ! -s $video ]] && ((waited < 50)); do
     sleep 0.1
     waited=$((waited + 1))
   done

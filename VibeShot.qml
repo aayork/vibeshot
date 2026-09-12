@@ -60,6 +60,47 @@ Item {
 
   // --- lifecycle: called by omarchy-shell's summon/hide over IPC ---
 
+  // `shell call aayork.vibeshot <method> <arg>` is a *public* local IPC
+  // surface — any process on the machine can invoke it, not just our own
+  // scripts. captured()/gifReady()/scrollCaptured() take a path and later
+  // pass it to rm/cp/wl-copy, so without this check a malicious local
+  // process could claim "here's a screenshot at /home/you/anything" and get
+  // this plugin to load, copy, or delete a file it has no business
+  // touching (a confused-deputy attack). Every externally reachable
+  // path-taking entry point must go through this before it's trusted.
+  function isTrustedCachePath(path) {
+    if (typeof path !== "string" || path.length === 0) return false
+    if (path.indexOf(" ") !== -1) return false
+    if (path.split("/").indexOf("..") !== -1) return false
+    var prefix = root.cacheDir + "/"
+    return path.substring(0, prefix.length) === prefix
+  }
+
+  // QML's Canvas.save() has no O_EXCL/no-follow option of its own, so an
+  // unpredictable filename is the practical defense against another local
+  // process pre-planting a symlink at a path we're about to write to: it
+  // can't pre-position anything at a name it can't guess. Not a substitute
+  // for real exclusive creation, but it closes the realistic attack window.
+  function randomToken() {
+    return Date.now().toString(36) + "-" + Math.floor(Math.random() * 1e9).toString(36)
+  }
+
+  // Same safe idiom Util.execArgv itself uses: the script text below is a
+  // fixed constant, never built by concatenating a path/mime type into a
+  // string — untrusted values only ever land in bash's positional
+  // parameters, so nothing in them is re-parsed as shell syntax.
+  function copyFileToClipboard(mimeType, path, notifyTitle) {
+    Quickshell.execDetached(["bash", "-c",
+      'wl-copy --type "$1" < "$2" && omarchy-notification-send "$3" --image "$2"',
+      "bash", mimeType, path, notifyTitle])
+  }
+
+  function copyFileTo(srcPath, destPath, notifyTitle) {
+    Quickshell.execDetached(["bash", "-c",
+      'cp -- "$1" "$2" && omarchy-notification-send "$3" --image "$2"',
+      "bash", srcPath, destPath, notifyTitle])
+  }
+
   // The actual pixel grab (grim/slurp/hyprpicker) is launched by Hyprland
   // directly — see bindings.lua — never as a child of this Quickshell
   // process. Routing the interactive slurp session through a Quickshell
@@ -77,6 +118,7 @@ Item {
   // not the full editor — matches CleanShot's quick-look popup. The full
   // editor only opens if the user picks Markup on it.
   function captured(path) {
+    if (!root.isTrustedCachePath(path)) { console.warn("aayork.vibeshot: rejected untrusted path in captured()"); return }
     previewSizer.pendingKind = "image"
     previewSizer.pendingPath = path
   }
@@ -135,6 +177,7 @@ Item {
   function gifReady(path) {
     root.gifRecording = false
     root.gifRegion = null
+    if (!root.isTrustedCachePath(path)) { console.warn("aayork.vibeshot: rejected untrusted path in gifReady()"); return }
     previewSizer.pendingKind = "gif"
     previewSizer.pendingPath = path
   }
@@ -160,6 +203,7 @@ Item {
   function scrollCaptured(path) {
     root.scrollRecording = false
     root.scrollRegion = null
+    if (!root.isTrustedCachePath(path)) { console.warn("aayork.vibeshot: rejected untrusted path in scrollCaptured()"); return }
     previewSizer.pendingKind = "image"
     previewSizer.pendingPath = path
   }
@@ -211,7 +255,8 @@ Item {
   }
 
   function discardCapture() {
-    if (root.capturePath) Util.execDetached("rm -f " + Util.shellQuote(root.capturePath))
+    if (root.capturePath && root.isTrustedCachePath(root.capturePath))
+      Util.execArgv(["rm", "-f", root.capturePath])
     root.capturePath = ""
     root.captureW = 0
     root.captureH = 0
@@ -390,11 +435,8 @@ Item {
   }
 
   function doCopy() {
-    var tmp = root.cacheDir + "/copy-" + Date.now() + ".png"
-    if (root.flattenTo(tmp)) {
-      Util.execDetached("wl-copy --type image/png < " + Util.shellQuote(tmp) +
-        " && omarchy-notification-send 'Copied to clipboard' --image " + Util.shellQuote(tmp))
-    }
+    var tmp = root.cacheDir + "/copy-" + root.randomToken() + ".png"
+    if (root.flattenTo(tmp)) root.copyFileToClipboard("image/png", tmp, "Copied to clipboard")
     root.close()
   }
 
@@ -407,7 +449,7 @@ Item {
 
   function doPin() {
     root.pinCounter += 1
-    var stamp = Date.now() + "-" + root.pinCounter
+    var stamp = root.randomToken()
     var fullPath = root.cacheDir + "/pins/pin-" + stamp + "-full.png"
     var thumbPath = root.cacheDir + "/pins/pin-" + stamp + "-thumb.png"
     canvas.requestPaint()
@@ -446,7 +488,7 @@ Item {
       else next.push(root.pins[i])
     }
     root.pins = next
-    if (removedThumb) Util.execDetached("rm -f " + Util.shellQuote(removedThumb) + " " + Util.shellQuote(removedFull))
+    if (removedThumb) Util.execArgv(["rm", "-f", removedThumb, removedFull])
   }
 
   function savePin(id, fullPath) {
@@ -454,8 +496,7 @@ Item {
     var ext = (pin && pin.kind === "gif") ? ".gif" : ".png"
     var ts = Qt.formatDateTime(new Date(), "yyyy-MM-dd_HH-mm-ss")
     var dest = root.picturesDir + "/screenshot-" + ts + ext
-    Util.execDetached("cp " + Util.shellQuote(fullPath) + " " + Util.shellQuote(dest) +
-      " && omarchy-notification-send 'Screenshot saved' --image " + Util.shellQuote(dest))
+    root.copyFileTo(fullPath, dest, "Screenshot saved")
     // The quick post-capture preview resolves once you act on it; a
     // deliberately pinned shot stays put so you can keep referencing it.
     if (pin && pin.transient) root.removePin(id)
@@ -464,8 +505,7 @@ Item {
   function copyPin(id, fullPath) {
     var pin = root.findPin(id)
     var mime = (pin && pin.kind === "gif") ? "image/gif" : "image/png"
-    Util.execDetached("wl-copy --type " + mime + " < " + Util.shellQuote(fullPath) +
-      " && omarchy-notification-send 'Copied to clipboard' --image " + Util.shellQuote(fullPath))
+    root.copyFileToClipboard(mime, fullPath, "Copied to clipboard")
     if (pin && pin.transient) root.removePin(id)
   }
 
@@ -479,7 +519,7 @@ Item {
       else next.push(root.pins[i])
     }
     root.pins = next
-    if (thumbToRemove && thumbToRemove !== fullPath) Util.execDetached("rm -f " + Util.shellQuote(thumbToRemove))
+    if (thumbToRemove && thumbToRemove !== fullPath) Util.execArgv(["rm", "-f", thumbToRemove])
 
     root.openEditor(fullPath)
   }
@@ -488,7 +528,9 @@ Item {
 
   Process {
     id: initProc
-    command: ["bash", "-c", "mkdir -p " + Util.shellQuote(root.cacheDir + "/pins") + " " + Util.shellQuote(root.picturesDir)]
+    // No shell needed here at all — mkdir takes multiple directory
+    // arguments natively, so this is a plain argv call, not a command string.
+    command: ["mkdir", "-p", root.cacheDir + "/pins", root.picturesDir]
   }
 
 
