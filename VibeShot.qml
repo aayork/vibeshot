@@ -63,17 +63,48 @@ Item {
   // `shell call aayork.vibeshot <method> <arg>` is a *public* local IPC
   // surface — any process on the machine can invoke it, not just our own
   // scripts. captured()/gifReady()/scrollCaptured() take a path and later
-  // pass it to rm/cp/wl-copy, so without this check a malicious local
+  // pass it to rm/cp/wl-copy, so without a real check a malicious local
   // process could claim "here's a screenshot at /home/you/anything" and get
   // this plugin to load, copy, or delete a file it has no business
-  // touching (a confused-deputy attack). Every externally reachable
-  // path-taking entry point must go through this before it's trusted.
-  function isTrustedCachePath(path) {
+  // touching (a confused-deputy attack).
+  //
+  // A lexical prefix test alone is not enough: a symlink planted anywhere
+  // between the cache root and the named file (or the cache root itself)
+  // makes a lexically-valid path resolve somewhere else entirely by the
+  // time rm/cp actually touch it. cache-guard.py does the real work —
+  // walking down to the file component-by-component with O_NOFOLLOW,
+  // requiring a regular file we own at the end — and this cheap synchronous
+  // check is only a fast reject for obviously-bogus input so we don't spawn
+  // a process for garbage.
+  function looksLikeCachePath(path) {
     if (typeof path !== "string" || path.length === 0) return false
     if (path.indexOf(" ") !== -1) return false
     if (path.split("/").indexOf("..") !== -1) return false
     var prefix = root.cacheDir + "/"
     return path.substring(0, prefix.length) === prefix
+  }
+
+  // The authoritative check. Runs cache-guard.py's "check" subcommand,
+  // which re-derives the cache directory from scratch and opens every
+  // component down to the target file with O_NOFOLLOW — the only way to
+  // actually rule out a symlinked ancestor or a symlinked target, which a
+  // plain string comparison can't see. `callback(ok, path)` fires once the
+  // verification process exits; queued so overlapping calls (e.g. a gif
+  // finishing while a screenshot preview is still verifying) don't clobber
+  // each other's in-flight command/callback.
+  property var pathVerifyQueue: []
+
+  function verifyCachePath(path, callback) {
+    if (!root.looksLikeCachePath(path)) { callback(false, path); return }
+    root.pathVerifyQueue.push({ path: path, callback: callback })
+    root.pumpPathVerifyQueue()
+  }
+
+  function pumpPathVerifyQueue() {
+    if (pathVerifyProc.running) return
+    if (root.pathVerifyQueue.length === 0) return
+    pathVerifyProc.command = [root.pluginDir + "/cache-guard.py", "check", "--", root.pathVerifyQueue[0].path]
+    pathVerifyProc.running = true
   }
 
   // QML's Canvas.save() has no O_EXCL/no-follow option of its own, so an
@@ -89,16 +120,25 @@ Item {
   // fixed constant, never built by concatenating a path/mime type into a
   // string — untrusted values only ever land in bash's positional
   // parameters, so nothing in them is re-parsed as shell syntax.
+  //
+  // Reading the source file goes through cache-guard.py rather than a bare
+  // `<`/`cp`, which would follow a symlink transparently and hand whatever
+  // it points to (e.g. another file this same user owns elsewhere) to the
+  // clipboard or into Pictures/Screenshots. The guard opens it O_NOFOLLOW
+  // after re-verifying it's a real file inside our cache dir, so a
+  // symlinked cache entry is refused outright instead of silently
+  // dereferenced. PATH is pinned so none of grim/wl-copy/etc. can be
+  // shadowed by an earlier, attacker-writable PATH entry.
   function copyFileToClipboard(mimeType, path, notifyTitle) {
     Quickshell.execDetached(["bash", "-c",
-      'wl-copy --type "$1" < "$2" && omarchy-notification-send "$3" --image "$2"',
-      "bash", mimeType, path, notifyTitle])
+      'export PATH=/usr/bin:/bin; set -o pipefail; "$1" cat -- "$2" | wl-copy --type "$3" && omarchy-notification-send "$4" --image "$2"',
+      "bash", root.pluginDir + "/cache-guard.py", path, mimeType, notifyTitle])
   }
 
   function copyFileTo(srcPath, destPath, notifyTitle) {
     Quickshell.execDetached(["bash", "-c",
-      'cp -- "$1" "$2" && omarchy-notification-send "$3" --image "$2"',
-      "bash", srcPath, destPath, notifyTitle])
+      'export PATH=/usr/bin:/bin; "$1" save -- "$2" "$3" && omarchy-notification-send "$4" --image "$3"',
+      "bash", root.pluginDir + "/cache-guard.py", srcPath, destPath, notifyTitle])
   }
 
   // The actual pixel grab (grim/slurp/hyprpicker) is launched by Hyprland
@@ -118,9 +158,11 @@ Item {
   // not the full editor — matches CleanShot's quick-look popup. The full
   // editor only opens if the user picks Markup on it.
   function captured(path) {
-    if (!root.isTrustedCachePath(path)) { console.warn("aayork.vibeshot: rejected untrusted path in captured()"); return }
-    previewSizer.pendingKind = "image"
-    previewSizer.pendingPath = path
+    root.verifyCachePath(path, function(ok, verifiedPath) {
+      if (!ok) { console.warn("aayork.vibeshot: rejected untrusted path in captured()"); return }
+      previewSizer.pendingKind = "image"
+      previewSizer.pendingPath = verifiedPath
+    })
   }
 
   // Capture-mode picker popup, opened by a single ordinary keybind (no
@@ -177,9 +219,11 @@ Item {
   function gifReady(path) {
     root.gifRecording = false
     root.gifRegion = null
-    if (!root.isTrustedCachePath(path)) { console.warn("aayork.vibeshot: rejected untrusted path in gifReady()"); return }
-    previewSizer.pendingKind = "gif"
-    previewSizer.pendingPath = path
+    root.verifyCachePath(path, function(ok, verifiedPath) {
+      if (!ok) { console.warn("aayork.vibeshot: rejected untrusted path in gifReady()"); return }
+      previewSizer.pendingKind = "gif"
+      previewSizer.pendingPath = verifiedPath
+    })
   }
 
   function menuToggleScroll() {
@@ -203,9 +247,11 @@ Item {
   function scrollCaptured(path) {
     root.scrollRecording = false
     root.scrollRegion = null
-    if (!root.isTrustedCachePath(path)) { console.warn("aayork.vibeshot: rejected untrusted path in scrollCaptured()"); return }
-    previewSizer.pendingKind = "image"
-    previewSizer.pendingPath = path
+    root.verifyCachePath(path, function(ok, verifiedPath) {
+      if (!ok) { console.warn("aayork.vibeshot: rejected untrusted path in scrollCaptured()"); return }
+      previewSizer.pendingKind = "image"
+      previewSizer.pendingPath = verifiedPath
+    })
   }
 
   // New pins stack straight up from the bottom-left, each sitting directly
@@ -255,8 +301,8 @@ Item {
   }
 
   function discardCapture() {
-    if (root.capturePath && root.isTrustedCachePath(root.capturePath))
-      Util.execArgv(["rm", "-f", root.capturePath])
+    if (root.capturePath)
+      Util.execArgv([root.pluginDir + "/cache-guard.py", "rm", "--", root.capturePath])
     root.capturePath = ""
     root.captureW = 0
     root.captureH = 0
@@ -488,7 +534,7 @@ Item {
       else next.push(root.pins[i])
     }
     root.pins = next
-    if (removedThumb) Util.execArgv(["rm", "-f", removedThumb, removedFull])
+    if (removedThumb) Util.execArgv([root.pluginDir + "/cache-guard.py", "rm", "--", removedThumb, removedFull])
   }
 
   function savePin(id, fullPath) {
@@ -519,7 +565,7 @@ Item {
       else next.push(root.pins[i])
     }
     root.pins = next
-    if (thumbToRemove && thumbToRemove !== fullPath) Util.execArgv(["rm", "-f", thumbToRemove])
+    if (thumbToRemove && thumbToRemove !== fullPath) Util.execArgv([root.pluginDir + "/cache-guard.py", "rm", "--", thumbToRemove])
 
     root.openEditor(fullPath)
   }
@@ -528,9 +574,23 @@ Item {
 
   Process {
     id: initProc
-    // No shell needed here at all — mkdir takes multiple directory
-    // arguments natively, so this is a plain argv call, not a command string.
-    command: ["mkdir", "-p", root.cacheDir + "/pins", root.picturesDir]
+    // The cache dir (and its pins/ subdir) go through cache-guard.py so
+    // they're created — or, if they already exist, verified — the same
+    // O_NOFOLLOW-walked, owned-by-us way every other guarded operation
+    // checks them. Pictures/Screenshots is a plain, non-secret,
+    // user-visible location, so a bare mkdir -p for it carries none of the
+    // same risk.
+    command: ["bash", "-c", 'export PATH=/usr/bin:/bin; "$1" mkdirs && mkdir -p -- "$2"',
+      "bash", root.pluginDir + "/cache-guard.py", root.picturesDir]
+  }
+
+  Process {
+    id: pathVerifyProc
+    onExited: function(exitCode) {
+      var job = root.pathVerifyQueue.shift()
+      if (job) job.callback(exitCode === 0, job.path)
+      root.pumpPathVerifyQueue()
+    }
   }
 
 

@@ -6,6 +6,8 @@ where the two overlap. Used by scroll-capture.sh once per captured tick.
 Usage: stitch-frame.py <prev_frame> <new_frame> <stitched>
 Prints one of APPENDED <n> / NOCHANGE / NOMATCH to stdout.
 """
+import os
+import stat
 import sys
 import numpy as np
 from PIL import Image
@@ -27,9 +29,52 @@ MATCH_THRESHOLD = 6.0
 # duplicated.
 TIE_TOLERANCE = 1.5
 
+# scroll-capture.sh's work_dir sits in a 0700 directory, but any other
+# process running as this user can still write into it (or race the grim
+# call that's about to overwrite prev.png/new.png). None of these files are
+# ours to trust blindly: cap what we'll even attempt to decode, in both
+# byte size and decoded pixel count, so a maliciously swapped-in frame can't
+# turn one stitch tick into a memory-exhaustion DoS via a decompression
+# bomb, and refuse anything that isn't a plain regular file opened without
+# following a symlink (grim/mv never produce one; something else must have).
+MAX_FILE_BYTES = 64 * 1024 * 1024
+Image.MAX_IMAGE_PIXELS = 64_000_000
+# A screenshot region isn't reasonably ever this tall; stop growing the
+# stitched image past this rather than let a very long capture session (up
+# to MAX_DURATION in scroll-capture.sh) accumulate an unbounded amount of
+# memory one small append at a time.
+MAX_STITCHED_HEIGHT = 20000
+
+
+def open_verified(path):
+    """Open `path` for reading without following a symlink, and refuse
+    anything that isn't a regular file under the size ceiling."""
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+    try:
+        st = os.fstat(fd)
+        if not stat.S_ISREG(st.st_mode):
+            raise ValueError(f"{path} is not a regular file")
+        if st.st_size > MAX_FILE_BYTES:
+            raise ValueError(f"{path} exceeds the {MAX_FILE_BYTES}-byte limit")
+    except Exception:
+        os.close(fd)
+        raise
+    return os.fdopen(fd, "rb")
+
+
+def open_image_checked(f):
+    """PIL only hard-errors at 2x Image.MAX_IMAGE_PIXELS, warning (but still
+    decoding) between 1x and 2x — not the hard ceiling we actually want, so
+    check the declared size ourselves before any pixel data is decoded."""
+    im = Image.open(f)
+    if im.size[0] * im.size[1] > Image.MAX_IMAGE_PIXELS:
+        raise ValueError(f"image {im.size[0]}x{im.size[1]} exceeds the pixel-count limit")
+    return im
+
 
 def load_rgb(path):
-    return np.asarray(Image.open(path).convert("RGB"), dtype=np.int32)
+    with open_verified(path) as f:
+        return np.asarray(open_image_checked(f).convert("RGB"), dtype=np.int32)
 
 
 def find_offset(probe, frame):
@@ -68,9 +113,16 @@ def main():
         print("NOCHANGE")
         return
 
-    slice_img = Image.open(new_path).convert("RGB").crop(
-        (0, new_content_start, new.shape[1], new.shape[0]))
-    stitched = Image.open(stitched_path).convert("RGB")
+    with open_verified(stitched_path) as f:
+        stitched = open_image_checked(f).convert("RGB")
+
+    if stitched.height + new_rows > MAX_STITCHED_HEIGHT:
+        print("NOCHANGE")
+        return
+
+    with open_verified(new_path) as f:
+        slice_img = open_image_checked(f).convert("RGB").crop(
+            (0, new_content_start, new.shape[1], new.shape[0]))
 
     combined = Image.new("RGB", (stitched.width, stitched.height + slice_img.height))
     combined.paste(stitched, (0, 0))
