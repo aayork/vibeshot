@@ -837,23 +837,31 @@ Item {
       }
     }
 
-    // Recording-in-progress indicators: a border around the exact captured
-    // area plus a small HUD (pulsing dot, elapsed time, Stop). Positioned in
-    // panel's own local space, so the region's global coordinates need the
-    // panel's screen offset subtracted — matters on multi-monitor setups.
+    // Recording-in-progress indicators: a border around the captured area
+    // plus a small HUD (pulsing dot, elapsed time, Stop). `no_screen_share`
+    // on this namespace (bindings.lua) turned out not to be respected by
+    // gpu-screen-recorder's direct KMS capture path, so both the border and
+    // the HUD are positioned geometrically *outside* the exact captured
+    // pixel rectangle instead — that keeps them out of the recording no
+    // matter what the capture mechanism does or doesn't honor. Panel-local
+    // coordinates need the panel's own screen offset subtracted from the
+    // region's global ones — matters on multi-monitor setups.
+    readonly property int frameThickness: Style.space(3)
+    readonly property int frameGap: Style.space(8)
+
     Item {
       id: gifRegionBox
       visible: root.gifRecording && root.gifRegion !== null
-      x: root.gifRegion ? root.gifRegion.x - panel.screen.x : 0
-      y: root.gifRegion ? root.gifRegion.y - panel.screen.y : 0
-      width: root.gifRegion ? root.gifRegion.w : 0
-      height: root.gifRegion ? root.gifRegion.h : 0
+      x: (root.gifRegion ? root.gifRegion.x - panel.screen.x : 0) - panel.frameThickness
+      y: (root.gifRegion ? root.gifRegion.y - panel.screen.y : 0) - panel.frameThickness
+      width: (root.gifRegion ? root.gifRegion.w : 0) + panel.frameThickness * 2
+      height: (root.gifRegion ? root.gifRegion.h : 0) + panel.frameThickness * 2
 
       Rectangle {
         anchors.fill: parent
         color: "transparent"
         border.color: Color.urgent
-        border.width: Style.space(3)
+        border.width: panel.frameThickness
       }
     }
 
@@ -862,8 +870,12 @@ Item {
       visible: root.gifRecording
       width: visible ? gifHudRow.implicitWidth + Style.space(16) : 0
       height: visible ? gifHudRow.implicitHeight + Style.space(10) : 0
-      x: gifRegionBox.x + Style.space(8)
-      y: gifRegionBox.y + Style.space(8)
+      x: gifRegionBox.x
+      // Prefer sitting just above the frame; drop below it instead if that
+      // would push the HUD off the top of the screen.
+      y: (gifRegionBox.y - height - panel.frameGap >= 0)
+        ? (gifRegionBox.y - height - panel.frameGap)
+        : (gifRegionBox.y + gifRegionBox.height + panel.frameGap)
       radius: Style.cornerRadius
       color: Util.alpha(Color.popups.background, 0.95)
       borderSpec: Border.surfaceSpec("popups", "border", Color.popups.border, Math.max(1, Style.space(2)))
@@ -904,16 +916,16 @@ Item {
     Item {
       id: scrollRegionBox
       visible: root.scrollRecording && root.scrollRegion !== null
-      x: root.scrollRegion ? root.scrollRegion.x - panel.screen.x : 0
-      y: root.scrollRegion ? root.scrollRegion.y - panel.screen.y : 0
-      width: root.scrollRegion ? root.scrollRegion.w : 0
-      height: root.scrollRegion ? root.scrollRegion.h : 0
+      x: (root.scrollRegion ? root.scrollRegion.x - panel.screen.x : 0) - panel.frameThickness
+      y: (root.scrollRegion ? root.scrollRegion.y - panel.screen.y : 0) - panel.frameThickness
+      width: (root.scrollRegion ? root.scrollRegion.w : 0) + panel.frameThickness * 2
+      height: (root.scrollRegion ? root.scrollRegion.h : 0) + panel.frameThickness * 2
 
       Rectangle {
         anchors.fill: parent
         color: "transparent"
         border.color: Color.accent
-        border.width: Style.space(3)
+        border.width: panel.frameThickness
       }
     }
 
@@ -922,8 +934,10 @@ Item {
       visible: root.scrollRecording
       width: visible ? scrollHudRow.implicitWidth + Style.space(16) : 0
       height: visible ? scrollHudRow.implicitHeight + Style.space(10) : 0
-      x: scrollRegionBox.x + Style.space(8)
-      y: scrollRegionBox.y + Style.space(8)
+      x: scrollRegionBox.x
+      y: (scrollRegionBox.y - height - panel.frameGap >= 0)
+        ? (scrollRegionBox.y - height - panel.frameGap)
+        : (scrollRegionBox.y + scrollRegionBox.height + panel.frameGap)
       radius: Style.cornerRadius
       color: Util.alpha(Color.popups.background, 0.95)
       borderSpec: Border.surfaceSpec("popups", "border", Color.popups.border, Math.max(1, Style.space(2)))
