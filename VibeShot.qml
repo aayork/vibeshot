@@ -300,14 +300,17 @@ Item {
 
   function doCopy() {
     var tmp = root.cacheDir + "/copy-" + Date.now() + ".png"
-    if (root.flattenTo(tmp)) Util.execDetached("wl-copy --type image/png < " + Util.shellQuote(tmp))
+    if (root.flattenTo(tmp)) {
+      Util.execDetached("wl-copy --type image/png < " + Util.shellQuote(tmp) +
+        " && omarchy-notification-send 'Copied to clipboard' --image " + Util.shellQuote(tmp))
+    }
     root.close()
   }
 
   function doSave() {
     var ts = Qt.formatDateTime(new Date(), "yyyy-MM-dd_HH-mm-ss")
     var path = root.picturesDir + "/screenshot-" + ts + ".png"
-    if (root.flattenTo(path)) Util.execArgv(["omarchy-notification-send", "Screenshot saved", path])
+    if (root.flattenTo(path)) Util.execArgv(["omarchy-notification-send", "Screenshot saved", "--image", path])
     root.close()
   }
 
@@ -358,7 +361,7 @@ Item {
     var ts = Qt.formatDateTime(new Date(), "yyyy-MM-dd_HH-mm-ss")
     var dest = root.picturesDir + "/screenshot-" + ts + ".png"
     Util.execDetached("cp " + Util.shellQuote(fullPath) + " " + Util.shellQuote(dest) +
-      " && omarchy-notification-send 'Screenshot saved' " + Util.shellQuote(dest))
+      " && omarchy-notification-send 'Screenshot saved' --image " + Util.shellQuote(dest))
     // The quick post-capture preview resolves once you act on it; a
     // deliberately pinned shot stays put so you can keep referencing it.
     var pin = root.findPin(id)
@@ -366,7 +369,8 @@ Item {
   }
 
   function copyPin(id, fullPath) {
-    Util.execDetached("wl-copy --type image/png < " + Util.shellQuote(fullPath))
+    Util.execDetached("wl-copy --type image/png < " + Util.shellQuote(fullPath) +
+      " && omarchy-notification-send 'Copied to clipboard' --image " + Util.shellQuote(fullPath))
     var pin = root.findPin(id)
     if (pin && pin.transient) root.removePin(id)
   }

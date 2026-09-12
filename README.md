@@ -27,10 +27,13 @@ corner, shown on hover:
   few fixed accents). Copy to clipboard, save to disk, or pin it from there
   too.
 - **(copy icon, top-left)** — copies the untouched screenshot to the
-  clipboard.
+  clipboard, with a desktop notification confirming it.
 - **(floppy disk, bottom-right)** — writes the untouched screenshot straight
-  to `~/Pictures/Screenshots`.
+  to `~/Pictures/Screenshots`, with a desktop notification showing where.
 - **✕ (top-right)** — throws it away.
+
+Hover any corner icon for a name label so it's clear what each one does
+before you click it.
 
 Anything you pin (from the preview or from inside the editor) becomes a small
 always-on-top floating window you can drag anywhere on screen, with the same

@@ -18,6 +18,14 @@ PanelWindow {
   property real posX: modelData.x
   property real posY: modelData.y
   readonly property bool hovered: cardHover.hovered
+  // One shared centered tooltip rather than one per corner — a pin can be
+  // as small as ~150px wide, too narrow for four independent floating
+  // labels to avoid clipping or overlapping each other.
+  readonly property string hotLabel: closeMouse.containsMouse ? "Dismiss"
+    : copyMouse.containsMouse ? "Copy"
+    : markupMouse.containsMouse ? "Markup"
+    : saveMouse.containsMouse ? "Save"
+    : ""
 
   anchors { top: true; left: true }
   margins.left: Math.round(posX)
@@ -116,6 +124,7 @@ PanelWindow {
       }
 
       MouseArea {
+        id: closeMouse
         anchors.fill: parent
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
@@ -156,6 +165,7 @@ PanelWindow {
       }
 
       MouseArea {
+        id: copyMouse
         anchors.fill: parent
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
@@ -196,6 +206,7 @@ PanelWindow {
       }
 
       MouseArea {
+        id: markupMouse
         anchors.fill: parent
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
@@ -236,10 +247,32 @@ PanelWindow {
       }
 
       MouseArea {
+        id: saveMouse
         anchors.fill: parent
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
         onClicked: if (pin.saveHandler) pin.saveHandler(pin.pinId, pin.modelData.fullPath)
+      }
+    }
+
+    Rectangle {
+      id: hotLabelBadge
+      visible: pin.hotLabel !== ""
+      anchors.centerIn: parent
+      radius: 3
+      color: Color.tooltip.background
+      border.color: Color.tooltip.border
+      border.width: 1
+      width: hotLabelText.implicitWidth + Style.space(12)
+      height: hotLabelText.implicitHeight + Style.space(6)
+
+      Text {
+        id: hotLabelText
+        anchors.centerIn: parent
+        text: pin.hotLabel
+        color: Color.tooltip.text
+        font.family: Style.font.family
+        font.pixelSize: Style.font.caption
       }
     }
   }
